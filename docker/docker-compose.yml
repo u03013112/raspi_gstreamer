@@ -7,3 +7,5 @@ services:
     devices:
       - /dev/video0:/dev/video0
       - /dev/video1:/dev/video1
+    ports:
+      - "5000:5000/udp"
