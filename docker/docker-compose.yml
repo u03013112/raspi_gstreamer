@@ -1,0 +1,9 @@
+version: '3'
+services:
+  camera_stream:
+    build: .
+    volumes:
+      - ./app:/app
+    devices:
+      - /dev/video0:/dev/video0
+      - /dev/video1:/dev/video1
