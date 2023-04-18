@@ -38,6 +38,10 @@ def main():
             break
 
         stitched_frame = stitch_frames(frame1, frame2)
+        # cv2.imencode()函数用于将图像编码为特定格式，例如JPEG。这个过程确实会消耗一定的CPU资源，因为它需要对图像数据进行压缩。然而，JPEG编码通常比视频编码（如H.264或H.265）更简单，因此其性能消耗相对较低。
+        # 在上面的代码示例中，我们将拼接后的图像编码为JPEG，然后将其发送到GStreamer管道。这里使用JPEG编码是为了简化示例，因为GStreamer可以很容易地处理JPEG格式的图像数据。然而，这并不是唯一的方法，你可以根据你的需求选择其他图像格式或编码方式。
+        # 如果你关心性能和时延，可以考虑直接将原始图像数据（例如RGB或YUV格式）发送到GStreamer管道，然后在管道中进行编码。这样可以减少在Python代码中进行编码所需的CPU时间。然而，这可能需要对GStreamer管道进行相应的调整，以处理原始图像数据并将其编码为所需的视频格式。
+        # 总之，cv2.imencode()函数确实会消耗一定的CPU资源，但在许多情况下，这种消耗是可以接受的。如果你发现这个步骤对性能产生了显著影响，可以考虑使用其他方法将图像数据发送到GStreamer管道。
         _, data = cv2.imencode('.jpg', stitched_frame)
         buf = Gst.Buffer.new_wrapped(data.tobytes())
         appsrc.emit("push-buffer", buf)
