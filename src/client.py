@@ -1,46 +1,66 @@
-import cv2
 import gi
 import numpy as np
-gi.require_version('Gst', '1.0')
-from gi.repository import Gst, GLib
+import cv2
+import os
+import time
 
-def gst_to_opencv(sample):
-    buf = sample.get_buffer()
+gi.require_version("Gst", "1.0")
+gi.require_version("GstApp", "1.0")
+from gi.repository import Gst
+
+Gst.init(None)
+
+def on_new_sample(sink, pipeline, app):
+    sample = sink.emit("pull-sample")
+    buffer = sample.get_buffer()
     caps = sample.get_caps()
     width = caps.get_structure(0).get_value("width")
     height = caps.get_structure(0).get_value("height")
 
-    buf_data = buf.extract_dup(0, buf.get_size())
-    img_array = np.ndarray((height, width, 3), buffer=buf_data, dtype=np.uint8)
-    return img_array
+    success, mapinfo = buffer.map(Gst.MapFlags.READ)
+    if success:
+        frame = np.ndarray((height, width, 3), buffer=mapinfo.data, dtype=np.uint8)
+        if pipeline == pipeline1:
+            app.frame1 = frame.copy()
+        elif pipeline == pipeline2:
+            app.frame2 = frame.copy()
+        buffer.unmap(mapinfo)
 
-def new_sample(sink, data):
-    sample = sink.emit("pull-sample")
-    frame = gst_to_opencv(sample)
-    cv2.imshow("Video", frame)
-    cv2.waitKey(1)
     return Gst.FlowReturn.OK
 
-def main():
-    Gst.init(None)
+def create_pipeline(port, app):
+    pipeline = Gst.parse_launch(f"udpsrc port={port} ! application/x-rtp,media=video,payload=26,clock-rate=90000,encoding-name=JPEG ! rtpjpegdepay ! jpegdec ! videoconvert ! video/x-raw,format=BGR ! appsink name=sink emit-signals=True")
+    sink = pipeline.get_by_name("sink")
+    sink.connect("new-sample", on_new_sample, pipeline, app)
+    return pipeline
 
-    pipeline_str = "udpsrc port=5000 ! application/x-rtp,encoding-name=H264,payload=96 ! rtph264depay ! h264parse ! avdec_h264 ! videoconvert ! appsink"
-    pipeline = Gst.parse_launch(pipeline_str)
+class App:
+    def __init__(self):
+        self.frame1 = None
+        self.frame2 = None
 
-    appsink = pipeline.get_by_name("appsink0")
-    appsink.connect("new-sample", new_sample, None)
+app = App()
 
-    pipeline.set_state(Gst.State.PLAYING)
-    cv2.namedWindow("Video", cv2.WINDOW_AUTOSIZE)
+pipeline1 = create_pipeline(5000, app)
+pipeline2 = create_pipeline(5001, app)
 
-    try:
-        GLib.MainLoop().run()
-    except KeyboardInterrupt:
-        pass
+pipeline1.set_state(Gst.State.PLAYING)
+pipeline2.set_state(Gst.State.PLAYING)
 
-    pipeline.set_state(Gst.State.NULL)
-    cv2.destroyAllWindows()
+while True:
+    if app.frame1 is not None and app.frame2 is not None:
+        combined_frame = np.hstack((app.frame1, app.frame2))
+        cv2.imshow("Combined Video", combined_frame)
 
-if __name__ == "__main__":
-    print('start')
-    main()
+    key = cv2.waitKey(1) & 0xFF
+    if key == ord("q"):
+        break
+    elif key == ord("s"):
+        timestamp = time.strftime("%y%m%d_%H%M%S", time.localtime())
+        file_path = os.path.join("..", "pics", f"{timestamp}.jpg")
+        cv2.imwrite(file_path, combined_frame)
+        print(f"Screenshot saved to {file_path}")
+
+pipeline1.set_state(Gst.State.NULL)
+pipeline2.set_state(Gst.State.NULL)
+cv2.destroyAllWindows()

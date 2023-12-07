@@ -2,10 +2,11 @@ version: '3'
 services:
   camera_stream:
     build: .
+    tty: true
+    command: /bin/bash -c "while true; do sleep 1; done"
     volumes:
-      - ./app:/app
+      - ../src:/src
     devices:
       - /dev/video0:/dev/video0
-      - /dev/video1:/dev/video1
     ports:
       - "5000:5000/udp"
